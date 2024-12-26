@@ -1,10 +1,9 @@
 package com.example.apijava.models;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -19,18 +18,18 @@ public class Product {
     private Integer stock;
     private double price;
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true,fetch = FetchType.EAGER)
     private List<Image> images;
 
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "product_categories",
             joinColumns = @JoinColumn(name = "productId"),
             inverseJoinColumns = @JoinColumn(name = "categoryId")
     )
-    private List<Category> categories;
+    private List<Category> categories = new ArrayList<>();
 
-    // Constructor for creating a product with a list of categories
+
     public Product(String name, String description, Integer stock, double price, List<Category> categories) {
         this.name = name;
         this.description = description;

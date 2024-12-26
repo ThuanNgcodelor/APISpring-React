@@ -6,7 +6,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 @Data
 @Entity
@@ -23,6 +22,7 @@ public class Category {
         this.categoryName = categoryName;
         this.categoryStatus = categoryStatus;
     }
+
 
     public Category() {
     }
