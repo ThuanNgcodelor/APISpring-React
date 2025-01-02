@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 @Service
 public class CategoryServiceImpl implements CategoryService {
@@ -49,15 +48,15 @@ public class CategoryServiceImpl implements CategoryService {
             return category;
         }
 
-        try{
+        try {
             Optional<Category> optionalCategory = categoryRepository.findById(id);
             count++;
             Thread.sleep(1000);
-            if(optionalCategory.isPresent()){
+            if (optionalCategory.isPresent()) {
                 category = optionalCategory.get();
                 ops.set(key, category);
             }
-            System.out.println("Lấy ở database rồi HUHU "+ count);
+            System.out.println("Lấy ở database rồi HUHU " + count);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -68,39 +67,70 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public Category addCategory(Category category) {
         return Optional.of(category)
-                .filter(c-> !categoryRepository.existsByCategoryName(c.getCategoryName()))
-                .map(categoryRepository :: save)
-                .map(saveCategory->{
-                    //Set cache khi cập nhập thành công
+                .filter(c -> !categoryRepository.existsByCategoryName(c.getCategoryName()))
+                .map(categoryRepository::save)
+                .map(saveCategory -> {
+                    // Set cache khi cập nhật thành công
                     ValueOperations<String, Object> ops = redisTemplate.opsForValue();
                     String key = CATEGORY_KEY + ":" + saveCategory.getCategoryId();
+
                     ops.set(key, saveCategory);
-                    System.out.println("add from redis" + saveCategory.getCategoryId());
+//                     Xóa cache của trang cuối cùng
+                    updateCacheCategory();
+
                     return saveCategory;
                 })
                 .orElseThrow(() -> new AlreadyExistsException(category.getCategoryName() + " already exists"));
     }
 
     //Get id va update -> clear cache
+    // 1 đầu tiên khi update thành công -> clear cache với id
+    // 2 sẽ set cache voi categoryId
+    // 3 clear cache với pageNo gần
     @Override
     public Category updateCategory(Category category, Long id) {
         return Optional.ofNullable(getCategoryById(id))
-                .map(oldCategory ->{
+                .map(oldCategory -> {
                     oldCategory.setCategoryName(category.getCategoryName());
                     oldCategory.setCategoryStatus(category.isCategoryStatus());
                     Category updatedCategory = categoryRepository.save(oldCategory);
                     clearCache(id);
+
+                    ValueOperations<String, Object> ops = redisTemplate.opsForValue();
+                    String key = CATEGORY_KEY + ":" + id;
+                    ops.set(key, updatedCategory);
+
+                    updateCacheCategory();
+
                     return updatedCategory;
                 })
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
     }
+
+    //dùng để update lại pageNo gần nhất và set lại cache của nó
+    private void updateCacheCategory(){
+        long totalCategories = categoryRepository.count();
+        int pageSize = 10;
+        long totalPages = (totalCategories + pageSize - 1) / pageSize;
+
+        String lastPageKey = CATEGORY_KEY + ":pageNo:" + totalPages;
+        redisTemplate.delete(lastPageKey);
+
+        Pageable pageable = PageRequest.of((int) totalPages - 1, pageSize);
+        Page<Category> page = categoryRepository.findAll(pageable);
+        CachedPage<Category> cacheData = new CachedPage<>(page.getContent(), page.getTotalElements());
+        redisTemplate.opsForValue().set(lastPageKey, cacheData);
+    }
+
 
     @Override
     public void deleteCategoryById(Long id) {
         categoryRepository.findById(id).ifPresentOrElse(category -> {
             categoryRepository.delete(category);
             clearCache(id);
-        },() ->{
+
+            updateCacheCategory();
+        }, () -> {
             throw new ResourceNotFoundException("Category not found");
         });
     }
@@ -114,19 +144,19 @@ public class CategoryServiceImpl implements CategoryService {
     public Page<Category> getAllPage(Integer pageNo) {
         String key = CATEGORY_KEY + ":pageNo:" + pageNo;
 
+        // Kiểm tra dữ liệu cache
         CachedPage<Category> cachedPage = (CachedPage<Category>) redisTemplate.opsForValue().get(key);
         if (cachedPage != null) {
-            //get form redis
-            return new PageImpl<>(cachedPage.getContent(), PageRequest.of(pageNo-1, 10), cachedPage.getTotalElements());
+            // Lấy từ Redis
+            return new PageImpl<>(cachedPage.getContent(), PageRequest.of(pageNo - 1, 10), cachedPage.getTotalElements());
         }
 
-        // Query data from the database
+        // Query dữ liệu từ database
         Pageable pageable = PageRequest.of(pageNo - 1, 10);
         Page<Category> page = categoryRepository.findAll(pageable);
 
-        // Convert to CachedPage and save to Redis
+        // Chuyển đổi sang CachedPage và lưu vào Redis
         CachedPage<Category> cacheData = new CachedPage<>(page.getContent(), page.getTotalElements());
-//        redisTemplate.opsForValue().set(key, cacheData, 10, TimeUnit.MINUTES);
         redisTemplate.opsForValue().set(key, cacheData);
 
         return page;
@@ -140,13 +170,13 @@ public class CategoryServiceImpl implements CategoryService {
         //Query vào redis
         CachedPage<Category> cachedPage = (CachedPage<Category>) redisTemplate.opsForValue().get(key);
         if (cachedPage != null) {
-            return new PageImpl<>(cachedPage.getContent(), PageRequest.of(pageNo-1, 10), cachedPage.getTotalElements());
+            return new PageImpl<>(cachedPage.getContent(), PageRequest.of(pageNo - 1, 10), cachedPage.getTotalElements());
         }
 
         //Query vào db
         List<Category> fullList = categoryRepository.searchCategory(keyword);
-        Pageable pageable = PageRequest.of(pageNo-1, 10);
-        int start = Math.min((int) pageable.getOffset(),pageable.getPageSize());
+        Pageable pageable = PageRequest.of(pageNo - 1, 10);
+        int start = Math.min((int) pageable.getOffset(), pageable.getPageSize());
         int end = Math.min(start + pageable.getPageSize(), fullList.size());
 
         List<Category> pageList = fullList.subList(start, end);

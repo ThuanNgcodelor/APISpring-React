@@ -61,8 +61,8 @@ public class ProductController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse> getProductById(@PathVariable Long id) {
         try {
-            Product product = productService.getProductById(id);
-            return ResponseEntity.ok(new ApiResponse("success", product));
+            ProductDto productDto = productService.getProductById(id);
+            return ResponseEntity.ok(new ApiResponse("success", productDto));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
         }
@@ -84,7 +84,7 @@ public class ProductController {
     @GetMapping("/list")
     public ResponseEntity<ApiResponse> getAllProduct(@RequestParam(defaultValue = "1") Integer pageNo){
         return ResponseEntity.ok(new ApiResponse("List of product",productService.getAllProduct(pageNo)));
-//    http://localhost:8080/admin/product/list?pageNo=1
+//
     }
 
     @GetMapping("/search")

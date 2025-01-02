@@ -9,12 +9,12 @@ import org.springframework.data.domain.Page;
 import java.util.List;
 
 public interface ProductService {
-    public Product getProductById(Long id);
+    public ProductDto getProductById(Long id);
     Product addProduct(AddProductRequest product);
     Product updateProduct(ProductUpdateRequest product, Long id);
     void deleteProductById(Long id);
-    Page<Product> searchProduct(String keyword, Integer pageNO);
-    Page<Product> getAllProduct(Integer pageNO);
+    Page<ProductDto> searchProduct(String keyword, Integer pageNO);
+    Page<ProductDto> getAllProduct(Integer pageNO);
     Page<Product> getByCategory(Long id, Integer pageNO);
     List<ProductDto> getConvertedProducts(List<Product> products);
     ProductDto convertToDto(Product product);

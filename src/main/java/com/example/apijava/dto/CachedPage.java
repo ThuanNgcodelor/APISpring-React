@@ -6,9 +6,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.Serializable;
 import java.util.List;
 
+
 public class CachedPage<T> implements Serializable {
-    private List<T> content; // Nội dung của page
-    private long totalElements; // Tổng số phần tử
+    private List<T> content;
+    private long totalElements;
 
     @JsonCreator
     public CachedPage(@JsonProperty("content") List<T> content,
@@ -32,8 +33,5 @@ public class CachedPage<T> implements Serializable {
     public void setTotalElements(long totalElements) {
         this.totalElements = totalElements;
     }
-
-
-
-    public CachedPage() {}
 }
+

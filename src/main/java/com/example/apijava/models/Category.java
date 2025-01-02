@@ -23,7 +23,6 @@ public class Category {
         this.categoryStatus = categoryStatus;
     }
 
-
     public Category() {
     }
 

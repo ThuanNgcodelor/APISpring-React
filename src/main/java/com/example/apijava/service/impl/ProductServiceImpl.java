@@ -1,9 +1,9 @@
 package com.example.apijava.service.impl;
 
 import com.example.apijava.dto.CachedPage;
+import com.example.apijava.dto.CategoryDto;
 import com.example.apijava.dto.ImageDto;
 import com.example.apijava.dto.ProductDto;
-import com.example.apijava.exceptions.ResourceNotFoundException;
 import com.example.apijava.models.Category;
 import com.example.apijava.models.Image;
 import com.example.apijava.models.Product;
@@ -13,19 +13,18 @@ import com.example.apijava.repositorys.ProductRepository;
 import com.example.apijava.request.AddProductRequest;
 import com.example.apijava.request.ProductUpdateRequest;
 import com.example.apijava.service.inteface.ProductService;
-import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Service;
 import org.modelmapper.ModelMapper;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class ProductServiceImpl implements ProductService {
@@ -35,7 +34,7 @@ public class ProductServiceImpl implements ProductService {
     private static final String PRODUCT_KEY = "product";
 
 
-    private ModelMapper modelMapper;
+    private final ModelMapper modelMapper;
     private final ImageRepository imageRepository;
 
     @Autowired
@@ -114,40 +113,57 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Page<Product> searchProduct(String keyword, Integer pageNO) {
-
+    public Page<ProductDto> searchProduct(String keyword, Integer pageNO) {
         String key = PRODUCT_KEY + ":pageNo:" + pageNO + ":keyword:" + keyword;
-        CachedPage<Product> cachedPage = (CachedPage<Product>) redisTemplate.opsForValue().get(key);
+
+        // Query vào cache // cache vẫn phải để page
+        CachedPage<ProductDto> cachedPage = (CachedPage<ProductDto>) redisTemplate.opsForValue().get(key);
         if (cachedPage != null) {
             return new PageImpl<>(cachedPage.getContent(), PageRequest.of(pageNO - 1, 10), cachedPage.getTotalElements());
         }
 
+        // Query db
         List<Product> fullList = productRepository.searchProducts(keyword);
+        List<ProductDto> productDtoList = fullList.stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
         Pageable pageable = PageRequest.of(pageNO - 1, 10);
-        int start = Math.min((int) pageable.getOffset(), pageable.getPageSize());
-        int end = Math.min(start + pageable.getPageSize(), fullList.size());
-        List<Product> pageList = fullList.subList(start, end);
-        Page<Product> page = new PageImpl<>(pageList, pageable, fullList.size());
-        redisTemplate.opsForValue().set(key, page);
-        return page;
+        int start = Math.min((int) pageable.getOffset(), productDtoList.size());
+        int end = Math.min(start + pageable.getPageSize(), productDtoList.size());
+        // Phải chuyền array moi chay ?
+        List<ProductDto> productDtos = new ArrayList<>(productDtoList.subList(start, end));
+
+        Page<ProductDto> pageList = new PageImpl<>(productDtos, pageable, productDtoList.size());
+
+        // Convert to CachedPage and store in Redis
+        CachedPage<ProductDto> cache = new CachedPage<>(productDtos, productDtoList.size());
+        redisTemplate.opsForValue().set(key, cache);
+
+        return pageList;
     }
+
 
     @Override
-    public Page<Product> getAllProduct(Integer pageNO) {
-        String key = PRODUCT_KEY + ":pageNo:" + pageNO;
+    public Page<ProductDto> getAllProduct(Integer pageNo) {
+        String key = PRODUCT_KEY + ":pageNo:" + pageNo;
 
-        CachedPage<Product> cachedPage = (CachedPage<Product>) redisTemplate.opsForValue().get(key);
+        CachedPage<ProductDto> cachedPage = (CachedPage<ProductDto>) redisTemplate.opsForValue().get(key);
         if (cachedPage != null) {
-            return new PageImpl<>(cachedPage.getContent(), PageRequest.of(pageNO - 1, 10), cachedPage.getTotalElements());
+            return new PageImpl<>(cachedPage.getContent(), PageRequest.of(pageNo - 1, 10), cachedPage.getTotalElements());
         }
 
-        Pageable pageable = PageRequest.of(pageNO - 1, 10);
+        Pageable pageable = PageRequest.of(pageNo - 1, 10);
         Page<Product> page = productRepository.findAll(pageable);
-        CachedPage<Product> cacheData = new CachedPage<>(page.getContent(), page.getTotalElements());
 
+        List<ProductDto> productDtos = page.getContent().stream()
+                .map(this::convertToDto)
+                .toList();
+
+        CachedPage<ProductDto> cacheData = new CachedPage<>(productDtos, page.getTotalElements());
         redisTemplate.opsForValue().set(key, cacheData);
-        return page;
+        return new PageImpl<>(productDtos, pageable, page.getTotalElements());
     }
+
 
     @Override
     public Page<Product> getByCategory(Long id, Integer pageNO) {
@@ -161,28 +177,37 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public ProductDto convertToDto(Product product) {
-//        ProductDto productDto = modelMapper.map(product, ProductDto.class);
-//        List<Image> images = imageRepository.findByProductId(product.getId());
-//        List<ImageDto> imageDto = images.stream().map(image -> modelMapper.map(image, ImageDto.class)).toList();
-//        productDto.setImages(imageDto);
-//        return productDto;
-        return null;
-    }
-
-    //Get redis if false -> db
-    @Override
-    public Product getProductById(Long id) {
+    public ProductDto getProductById(Long id) {
         String key = PRODUCT_KEY + ":" + id;
-        Product cachedProduct = (Product) redisTemplate.opsForValue().get(key);
-        if (cachedProduct != null) {
-            return cachedProduct;
+        ProductDto cachedProductDto = (ProductDto) redisTemplate.opsForValue().get(key);
+        if (cachedProductDto != null) {
+            return cachedProductDto;
         }
+
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        redisTemplate.opsForValue().set(key, product);
-        return product;
+        // Convert Product to DTO before storing in Redis
+        ProductDto productDto = convertToDto(product);
+        redisTemplate.opsForValue().set(key, productDto);
+        return productDto;
+    }
+
+    @Override
+    public ProductDto convertToDto(Product product) {
+        ProductDto productDto = modelMapper.map(product, ProductDto.class);
+
+        // Fetch and set images
+        List<Image> images = imageRepository.findByProductId(product.getId());
+        List<ImageDto> imageDto = images.stream().map(image -> modelMapper.map(image, ImageDto.class)).toList();
+        productDto.setImages(imageDto);
+
+        List<CategoryDto> categoryDtoList = product.getCategories().stream()
+                .map(category -> modelMapper.map(category, CategoryDto.class))
+                .toList();
+        productDto.setCategories(categoryDtoList);
+
+        return productDto;
     }
 
     private void clearCache(Long id) {
