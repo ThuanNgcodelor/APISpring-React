@@ -45,7 +45,7 @@ public class ProductController {
     }
 
     @PutMapping("/update/{id}")
-    public ResponseEntity<ApiResponse> updateProduct(@PathVariable Long id,
+    public ResponseEntity<ApiResponse> updateProduct(@PathVariable("id") Long id,
                                                      @RequestBody ProductUpdateRequest product) {
         try {
             Product updatedProduct = productService.updateProduct(product, id);
@@ -61,15 +61,13 @@ public class ProductController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse> getProductById(@PathVariable Long id) {
         try {
-            Product product = productService.getProductById(id);
-            ProductDto productDto = productService.convertToDto(product);
+            ProductDto productDto = productService.getProductById(id);
             return ResponseEntity.ok(new ApiResponse("success", productDto));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
         }
-
         //http://localhost:8080/admin/product/6
-        //Test ok 
+        //Test ok
     }
 
     @DeleteMapping("/delete/{id}")
@@ -86,7 +84,7 @@ public class ProductController {
     @GetMapping("/list")
     public ResponseEntity<ApiResponse> getAllProduct(@RequestParam(defaultValue = "1") Integer pageNo){
         return ResponseEntity.ok(new ApiResponse("List of product",productService.getAllProduct(pageNo)));
-//    http://localhost:8080/admin/product/list?pageNo=1
+//
     }
 
     @GetMapping("/search")

@@ -1,7 +1,7 @@
 package com.example.apijava.request;
 
+import com.example.apijava.dto.ImageDto;
 import com.example.apijava.models.Category;
-import com.example.apijava.models.Image;
 import lombok.Data;
 
 import java.util.List;
@@ -13,10 +13,10 @@ public class ProductUpdateRequest {
     private String description;
     private Integer stock;
     private double price;
-    private List<Image> images;
+    private List<ImageDto> images;
     private List<Category> categories;
 
-    public ProductUpdateRequest(Long id, String name, String description, Integer stock, double price, List<Image> images, List<Category> categories) {
+    public ProductUpdateRequest(Long id, String name, String description, Integer stock, double price, List<ImageDto> images, List<Category> categories) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -69,11 +69,11 @@ public class ProductUpdateRequest {
         this.price = price;
     }
 
-    public List<Image> getImages() {
+    public List<ImageDto> getImages() {
         return images;
     }
 
-    public void setImages(List<Image> images) {
+    public void setImages(List<ImageDto> images) {
         this.images = images;
     }
 

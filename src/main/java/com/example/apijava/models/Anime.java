@@ -25,7 +25,7 @@ public class Anime {
     private String video;
     private String image;
     private boolean status;
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "anime_categories",
             joinColumns = @JoinColumn(name = "animeId"),

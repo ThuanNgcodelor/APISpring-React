@@ -5,6 +5,7 @@ import com.example.apijava.exceptions.ResourceNotFoundException;
 import com.example.apijava.models.Image;
 import com.example.apijava.models.Product;
 import com.example.apijava.repositorys.ImageRepository;
+import com.example.apijava.repositorys.ProductRepository;
 import com.example.apijava.service.inteface.ImageService;
 import com.example.apijava.service.inteface.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,11 +20,13 @@ import java.util.List;
 public class ImageServiceImpl implements ImageService {
     private final ImageRepository imageRepository;
     private final ProductService productService;
+    private final ProductRepository productRepository;
 
     @Autowired
-    public ImageServiceImpl(ImageRepository imageRepository, ProductService productService) {
+    public ImageServiceImpl(ImageRepository imageRepository, ProductService productService, ProductRepository productRepository) {
         this.imageRepository = imageRepository;
         this.productService = productService;
+        this.productRepository = productRepository;
     }
 
     @Override
@@ -33,17 +36,21 @@ public class ImageServiceImpl implements ImageService {
     }
 
     @Override
-    public void updateImage(MultipartFile file, Long ImageId) {
-        Image image = getImageById(ImageId);
+    public void updateImage(MultipartFile file, Long imageId) {
+        Image image = getImageById(imageId);
+        if (image == null) {
+            throw new ResourceNotFoundException("Image not found with ID: " + imageId);
+        }
         try {
             image.setFileName(file.getOriginalFilename());
             image.setFileType(file.getContentType());
             image.setImage(new SerialBlob(file.getBytes()));
             imageRepository.save(image);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Error updating image: " + e.getMessage(), e);
         }
     }
+
 
     @Override
     public void deleteImageById(Long id) {
@@ -55,7 +62,9 @@ public class ImageServiceImpl implements ImageService {
 
     @Override
     public List<ImageDto> saveImages(Long productId, List<MultipartFile> files) {
-        Product product = productService.getProductById(productId);
+        // Lấy đối tượng Product trực tiếp từ cơ sở dữ liệu
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
 
         List<ImageDto> saveImageDto = new ArrayList<>();
         for (MultipartFile file : files) {
@@ -65,13 +74,14 @@ public class ImageServiceImpl implements ImageService {
                 image.setFileType(file.getContentType());
                 image.setImage(new SerialBlob(file.getBytes()));
                 image.setProduct(product);
+
                 String buildDownloadUrl = "/admin/images/download/";
-                String downloadUrl = buildDownloadUrl+ image.getFileName();
+                String downloadUrl = buildDownloadUrl + image.getFileName();
                 image.setDownloadUrl(downloadUrl);
 
                 Image savedImage = imageRepository.save(image);
 
-                savedImage.setDownloadUrl(buildDownloadUrl+ savedImage.getId());
+                savedImage.setDownloadUrl(buildDownloadUrl + savedImage.getId());
                 imageRepository.save(savedImage);
 
                 ImageDto imageDto = new ImageDto();
@@ -79,12 +89,11 @@ public class ImageServiceImpl implements ImageService {
                 imageDto.setFileName(savedImage.getFileName());
                 imageDto.setDownloadUrl(savedImage.getDownloadUrl());
                 saveImageDto.add(imageDto);
-            }catch (Exception e){
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }
         return saveImageDto;
-
-        //Save Images
     }
+
 }

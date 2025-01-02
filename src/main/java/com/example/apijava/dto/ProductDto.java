@@ -13,9 +13,9 @@ public class ProductDto {
     private Integer stock;
     private double price;
     private List<ImageDto> images;
-    private List<Category> categories;
+    private List<CategoryDto> categories;
 
-    public ProductDto(Long id, String name, String description, Integer stock, double price, List<ImageDto> images, List<Category> categories) {
+    public ProductDto(Long id, String name, String description, Integer stock, double price, List<ImageDto> images, List<CategoryDto> categories) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -75,11 +75,11 @@ public class ProductDto {
         this.images = images;
     }
 
-    public List<Category> getCategories() {
+    public List<CategoryDto> getCategories() {
         return categories;
     }
 
-    public void setCategories(List<Category> categories) {
+    public void setCategories(List<CategoryDto> categories) {
         this.categories = categories;
     }
 }
